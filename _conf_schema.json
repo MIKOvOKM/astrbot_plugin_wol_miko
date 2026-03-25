@@ -1,0 +1,27 @@
+{
+    "mac": {
+        "type": "string",
+        "default": "",
+        "description": "绑定设备的 MAC 地址"
+    },
+    "ip": {
+        "type": "string",
+        "default": "",
+        "description": "绑定设备的 IP 地址（用于状态检测）"
+    },
+    "broadcast": {
+        "type": "string",
+        "default": "255.255.255.255",
+        "description": "唤醒包发送的广播地址"
+    },
+    "port": {
+        "type": "int",
+        "default": 9,
+        "description": "唤醒包发送的端口号"
+    },
+    "allowed_users": {
+        "type": "list",
+        "default": [],
+        "description": "允许使用插件的用户 ID 列表（仅私聊）"
+    }
+}
