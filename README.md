@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # AstrBot WOL 唤醒插件
+=======
+# AstrBot WOL 简易局域网唤醒插件
+>>>>>>> e199e9b4da0ed08e72f3f5362bf2103a64e5abee
 
 局域网唤醒插件，支持绑定设备、发送唤醒包、在线状态检测。
 
@@ -18,4 +22,8 @@
 ## 安装
 1. 将插件放入 `data/plugins/` 目录
 2. 重启 AstrBot 或执行 `reload`
+<<<<<<< HEAD
 3. 确保已安装依赖：`pip install ping3`
+=======
+3. 确保已安装依赖：`pip install ping3`
+>>>>>>> e199e9b4da0ed08e72f3f5362bf2103a64e5abee
