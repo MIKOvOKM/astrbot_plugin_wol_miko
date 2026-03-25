@@ -21,7 +21,7 @@
     },
     "allowed_users": {
         "type": "list",
-        "default": [1234567890],
+        "default": [],
         "description": "允许使用插件的用户 ID 列表（仅私聊）"
     }
 }
