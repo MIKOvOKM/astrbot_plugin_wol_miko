@@ -1,6 +1,7 @@
 import socket
 import re
 import asyncio
+import ipaddress  # 新增：用于IP格式校验
 from functools import partial
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -25,36 +26,49 @@ class WolPlugin(Star):
             self.config.save_config()
 
     def _is_private_allowed(self, event: AstrMessageEvent) -> bool:
-        """检查是否为私聊且用户在白名单中，返回 True 表示允许插件处理"""
+        """检查是否为私聊且用户在白名单中。
+        若白名单为空，则默认拒绝所有操作，并记录警告。
+        """
         # 判断消息类型：私聊时 group_id 为空字符串
         if event.message_obj.group_id:
             return False  # 群聊不允许
         # 私聊检查白名单
         allowed = self.config.get("allowed_users", [])
-        if allowed:
-            user_id = event.get_sender_id()
-            return user_id in allowed
-        # 白名单为空表示不限制
-        return True
+        if not allowed:
+            # 空白名单：默认拒绝，并提示管理员配置
+            logger.warning("WOL插件白名单为空，已拒绝来自 %s 的操作。请配置 allowed_users 项。", event.get_sender_id())
+            return False
+        user_id = event.get_sender_id()
+        return user_id in allowed
 
     async def _ping_device(self, ip: str) -> bool:
+        """异步ping设备，使用线程池执行，并记录异常"""
         try:
             loop = asyncio.get_running_loop()
             ping_func = partial(ping, ip, timeout=2)
             res = await loop.run_in_executor(None, ping_func)
             return res is not None and res is not False
-        except Exception:
+        except Exception as e:
+            # 记录详细异常，便于排查（如权限问题）
+            logger.error(f"Ping 测试异常: {e} (IP: {ip})")
             return False
 
-    def _send_magic_packet(self, mac: str) -> bool:
+    async def _send_magic_packet(self, mac: str) -> bool:
+        """异步发送幻包，避免阻塞主循环"""
         try:
             clean_mac = re.sub(r'[:\-\.]', '', mac.upper())
             data = bytes.fromhex('FF' * 6) + bytes.fromhex(clean_mac * 16)
             broadcast = self.config.get("broadcast", "255.255.255.255")
             port = int(self.config.get("port", 9))
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                s.sendto(data, (broadcast, port))
+
+            # 将同步socket操作放入线程池执行
+            loop = asyncio.get_running_loop()
+            def _send():
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    s.sendto(data, (broadcast, port))
+            await loop.run_in_executor(None, _send)
+
             logger.info(f"已发送幻包到 MAC: {clean_mac}，广播地址 {broadcast}:{port}")
             return True
         except Exception as e:
@@ -93,9 +107,21 @@ class WolPlugin(Star):
             yield event.plain_result("❌ MAC 地址格式错误！")
             return
 
-        self.config["mac"] = mac_raw
+        # 可选 IP 地址校验
+        ip = None
         if len(args) >= 3:
-            self.config["ip"] = args[2]
+            ip_raw = args[2]
+            try:
+                # 使用 ipaddress 模块校验 IPv4/IPv6 格式
+                ipaddress.ip_address(ip_raw)
+                ip = ip_raw
+            except ValueError:
+                yield event.plain_result(f"❌ IP 地址格式错误：{ip_raw}")
+                return
+
+        self.config["mac"] = mac_raw
+        if ip is not None:
+            self.config["ip"] = ip
         self._save_config()
         yield event.plain_result(f"✅ 绑定成功！\nMAC: {mac_raw}\nIP: {self.config.get('ip', '未设置')}")
 
@@ -114,7 +140,7 @@ class WolPlugin(Star):
             yield event.plain_result("❌ 未设置 IP 地址，无法进行状态检测。请先使用 /绑定 设置 IP。")
             return
 
-        if not self._send_magic_packet(mac):
+        if not await self._send_magic_packet(mac):
             yield event.plain_result("❌ 唤醒指令发送失败，请检查日志。")
             return
 
@@ -165,6 +191,7 @@ class WolPlugin(Star):
             "  mac       # 绑定的 MAC 地址\n"
             "  ip        # 绑定的 IP 地址\n"
             "  broadcast # 广播地址（默认 255.255.255.255）\n"
-            "  port      # 端口（默认 9）"
+            "  port      # 端口（默认 9）\n\n"
+            "⚠️ 注意：请务必在插件配置中设置 allowed_users 白名单（用户ID列表），否则无法使用任何命令。"
         )
         yield event.plain_result(help_text)
