@@ -8,7 +8,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from ping3 import ping
 
-@register("astrbot_plugin_wol_miko", "Miko", "局域网唤醒工具 V1.0.5", "1.0.5")
+@register("astrbot_plugin_wol_miko", "Miko", "局域网唤醒工具 V1.0.0", "1.0.0")
 class WolPlugin(Star):
     def __init__(self, context: Context, config: dict):
         super().__init__(context)
@@ -54,25 +54,42 @@ class WolPlugin(Star):
             return False
 
     async def _send_magic_packet(self, mac: str) -> bool:
-        """异步发送幻包，避免阻塞主循环"""
+        """异步发送幻包：优先单播到设备IP，失败则自动回退广播"""
         try:
             clean_mac = re.sub(r'[:\-\.]', '', mac.upper())
             data = bytes.fromhex('FF' * 6) + bytes.fromhex(clean_mac * 16)
-            broadcast = self.config.get("broadcast", "255.255.255.255")
             port = int(self.config.get("port", 9))
 
-            # 将同步socket操作放入线程池执行
             loop = asyncio.get_running_loop()
-            def _send():
+            device_ip = self.config.get("ip")
+
+            # 1. 尝试单播（如果配置了设备IP）
+            if device_ip:
+                try:
+                    def _unicast():
+                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                            s.sendto(data, (device_ip, port))
+
+                    await loop.run_in_executor(None, _unicast)
+                    logger.info(f"✅ 单播唤醒成功：已发送幻包到 {device_ip}:{port}（MAC: {clean_mac}）")
+                    return True
+                except Exception as e:
+                    logger.warning(f"⚠️ 单播唤醒失败（{device_ip}:{port}）：{e}，将尝试广播回退")
+
+            # 2. 回退广播
+            broadcast = self.config.get("broadcast", "255.255.255.255")
+
+            def _broadcast():
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     s.sendto(data, (broadcast, port))
-            await loop.run_in_executor(None, _send)
 
-            logger.info(f"已发送幻包到 MAC: {clean_mac}，广播地址 {broadcast}:{port}")
+            await loop.run_in_executor(None, _broadcast)
+            logger.info(f"✅ 广播唤醒成功：已发送幻包到 {broadcast}:{port}（MAC: {clean_mac}）")
             return True
+
         except Exception as e:
-            logger.error(f"幻包发送失败: {e}")
+            logger.error(f"❌ 幻包发送彻底失败: {e}")
             return False
 
     async def _check_device(self, ip: str, show_details: bool, retries: int = 2) -> str:
