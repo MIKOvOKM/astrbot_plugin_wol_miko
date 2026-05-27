@@ -1,27 +1,28 @@
 {
-    "mac": {
-        "type": "string",
-        "default": "",
-        "description": "绑定设备的 MAC 地址"
-    },
-    "ip": {
-        "type": "string",
-        "default": "",
-        "description": "绑定设备的 IP 地址（用于状态检测）"
-    },
-    "broadcast": {
-        "type": "string",
-        "default": "255.255.255.255",
-        "description": "唤醒包发送的广播地址"
-    },
-    "port": {
-        "type": "int",
-        "default": 9,
-        "description": "唤醒包发送的端口号"
-    },
-    "allowed_users": {
-        "type": "list",
-        "default": [],
-        "description": "允许使用插件的用户 ID 列表（仅私聊）"
-    }
+  "allowed_users": {
+    "type": "list",
+    "default": [],
+    "description": "插件用户白名单",
+    "hint": "必须配置！允许使用本插件的用户列表。在QQ中请填写QQ号（UID）。注意：本插件仅在私聊中生效，群聊中不会触发任何功能。"
+  },
+  "enable_multi_device": {
+    "type": "bool",
+    "default": false,
+    "description": "多设备模式",
+    "hint": "开启后可绑定多台设备，添加设备时需加入'唤醒名称'，默认关闭。（绑定单台设备时，使用'开机'命令唤醒，绑定多台设备时，使用'开机 <唤醒名称>'唤醒。）"
+  },
+  "wake_timeout": {
+    "type": "int",
+    "default": 90,
+    "min": 10,
+    "max": 600,
+    "description": "唤醒检测的最大超时时间（秒）。"
+  },
+  "max_devices": {
+    "type": "int",
+    "default": 20,
+    "min": 1,
+    "max": 99,
+    "description": "单个用户能添加的最大设备数量。"
+  }
 }
