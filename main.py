@@ -156,8 +156,9 @@ class WolPlugin(Star):
                     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                         s.sendto(magic_packet, (target, p))
-                except:
-                    pass
+                        logger.info(f"📤 幻包已发送 → {target}:{p}")
+                except Exception as e:
+                    logger.error(f"📤 幻包发送失败 → {target}:{p}, 错误: {e}")
 
             if ip: tasks.append(loop.run_in_executor(None, send_to, ip, port))
             if ip:
@@ -170,7 +171,9 @@ class WolPlugin(Star):
 
             tasks.append(loop.run_in_executor(None, send_to, broadcast, port))
 
-            if tasks: await asyncio.gather(*tasks)
+            if tasks:
+                await asyncio.gather(*tasks)
+                logger.info(f"📤 幻包发送完成，共 {len(tasks)} 个目标")
             return True
         except Exception as e:
             logger.error(f"WOL Error: {e}")
